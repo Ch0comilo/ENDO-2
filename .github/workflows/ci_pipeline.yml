@@ -35,7 +35,7 @@ jobs:
 
       - name: Run integration test
         run: |
-          pytest tests/integration
+          PYTHONPATH=. pytest tests/integration
 
   lint:
     runs-on: ubuntu-latest
