@@ -49,6 +49,9 @@ Dibuje un diagrama del data pipeline que siga el paradigma ELT. Incluyendo: fuen
 
 ![alt text](mermaid-diagram.png)
 
+(Diagrama hecho con IA)
+Se puede ver que primero entran los datos crudos para que enseguida se den control deacceso y anonimización, linaje y monitoreo desde el primer momento, entonces ahora si se puede transformar porque ya pasamos la etapa EL y pasamos a T y con los respectivos test de calidad, luego cuando ya pasaron esos test, entran al data warehouse y de aquí ya pasan al consumo, debemos fijarnos también que staging esta con los datos en la fase EL como bien se indica en el taller con el monitoreo en cada instante
+
 Justifique por qué eligió ELT sobre ETL para esta startup. Mencione al menos 2 ventajas específicas para el caso de microcréditos.
 
 Un sistema de microcrédos necesita velocidad, flexibilidad y sobre todo y lo mencionaba varias veces en el punto anterior auditabilidad entonces ELT es justo lo que necesitamos para esto ya que en micrócreditos los modelos tienen que estar cambiando constantemente ya sea con nuevas variables, features, reglas etc... entonces los datos crudos se almacenan en un delta lake y no tenemos que rediseñar un pipeline cada vez que se vaya a cambiar algo, también tenemos trazabilidad completa, entonces necesitamos explicar desiciones y como el ELT me permite conservar datos en estado original entonces que mejor que el ETL, y finalmente tenemos la detección de errores y sesgos ya que si se hubiera usado ELT se hubiera podido detectar antes con mayor facilidad ya que puedo comparar los datos crudos contra los transformados y ver como cambian las distribuciones por región
@@ -159,3 +162,22 @@ Si su jefe le insiste en hacer scraping sin autorización para "ahorrar costos",
 
 Si fuera un ciudadano de bien y mi vida no dependiera de mi trabajo (osea nadie) le explicaría los riesgos legales y reputacionales que implica esto, lo ofrecería las alternativas antes vistas y si definitivamente no logro convencerlo simplemente me niego a hacerlo porque es mi responsabilidad como profesional con principios éticos (lástima que el dueño lo despide a uno, contrata a alguien que si lo haga)
 
+
+# Ejecución del pipeline
+
+Primero descargamos los requirements.txt
+
+pip install -r requirements.txt
+
+luego si queremos ejecutar el pipeline crudo
+
+python -m src.orchestrator
+
+ahora si queremos correr los tests para enrichment y validation
+
+### pruebas CI/CD 
+![alt text](image.png)
+
+![alt text](image-1.png)
+
+![alt text](image-2.png)
