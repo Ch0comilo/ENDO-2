@@ -27,7 +27,7 @@ jobs:
 
       - name: Run unit tests with coverage
         run: |
-          pytest tests \
+          PYTHONPATH=. pytest tests \
             --cov=src/data_validation \
             --cov=src/data_enrichment \
             --cov-report=term-missing \
