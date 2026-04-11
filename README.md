@@ -18,9 +18,7 @@ Por ultimo el modelo usado para el puntaje credicticio sufría de sesgos ya que 
 
 El hecho de que no hubieran unos roles con responsabilidades claras fue una de las causas principales del problema ya que nadie era responsable de la calidad ni de la seguridad ni del monitoreo de los datos y les dejaban ese trabajo a personas especializadas en hacer otros. Tampoco había la existencia depolíticas sobre los datos como el acceso a datos sensibles, uso de entornos seguros entre otros al igual que la falta de trazabilidad o el linaje de los datos ya que no se podían rastrear ya que nadie pudo detectar la transformación que afecto al modelo. Hubo tambien falta de controles automatizados porque si el analista tuvo que descargar los datos entonces no hay automatización en el sistema, volviendolo mas vulnerable y entorpeciendo los workflows.
 
-
 - Proponga 3 métricas clave (KPIs) que la empresa debería monitorear para prevenir incidentes similares en el futuro. Cada KPI debe tener: fórmula, umbral de alerta y frecuencia de medición.
-
 
 KPI1: la tasa de acceso a datos sensibles no autorizados, donde por mucho por mucho el umbral debe estar aprox 0.1% porque tampoco se va a formar un escandalo por algún dato público que se compartió en un chat de whatsapp sin querer y debe ser a tiempo real porque si se deja pasar entonces el delincuente estaría teniendo acceso a estos datos por mucho tiempo
 
@@ -35,13 +33,11 @@ y la formula tambien es fácl de deducir:
 
 numero de checks de calidad exitosos / numero de  checks ejecutados
 
-
 KPI3: Sesgo del modelo
 
 Ahora queremos que el modelo no discrimine por regiones entonces por eso tendremos un puntaje de sesgo donde no puede tener mas de 10% de desviación frente a los demás regiones, y debe realizarce por hay cada semana  ya que eso es mejor que 3 meses y su formula es básicamente mirar cuanto se desvía de la media o puntaje global
 
 |tasa_aprobacion_region - tasa_aprobacion_global|
-
 
 2. Arquitectura y Estrategia DataOps (15%)
 
@@ -73,7 +69,6 @@ primero debe haber una auditoría de datos de entrada, como analizar la distribu
 ¿Cómo aplicaría el principio de "datos como producto" para que los equipos de negocio, IT y ciencia de datos compartan responsabilidad sobre la calidad y seguridad? Describa al menos 2 artefactos o contratos formales.
 
 por medio de los data contracts, que son acuerdos entre los productores (IT) y consumidores (negocio) ya que estos tiene políticas bien definidad y evitan errores silenciosos como los que pasaron en el incidente, también estan la especificación de los productos de datos, donde se incluye quien es el responsable, la descripción del negocio, algunos casos de uso, el linaje entre muchos otros pero se puede ver claramente que alinea el negocio con los productores y la ciencia de datos
-
 
 Si se quisiera enriquecer las solicitudes de crédito con el puntaje crediticio de los solicitantes, a través de hacer web scraping a datacredito para obtener esta información "gratis", basado en el Habeas Data en Colombia, explique 3 razones por las que este scraping sería ilegal y violaría principios de protección de datos personales. Proponga 3 alternativas legales y éticas para obtener información crediticia. Para cada una, indique: viabilidad (alta/media/baja), costo estimado, y nivel de confianza de los datos. Si hipotéticamente estuviera explícitamente autorizado por escrito, escriba en pseudocódigo una función scrape_credit_score(cedula) que incluya:
 •
@@ -162,20 +157,106 @@ Si su jefe le insiste en hacer scraping sin autorización para "ahorrar costos",
 
 Si fuera un ciudadano de bien y mi vida no dependiera de mi trabajo (osea nadie) le explicaría los riesgos legales y reputacionales que implica esto, lo ofrecería las alternativas antes vistas y si definitivamente no logro convencerlo simplemente me niego a hacerlo porque es mi responsabilidad como profesional con principios éticos (lástima que el dueño lo despide a uno, contrata a alguien que si lo haga)
 
+1. Arquitectura hipotética: Dibuje un diagrama de secuencia de cómo sería un sistema
+   autorizado para extraer datos crediticios respetando:
+   • Rate limiting (X requests/segundo)
+   • Cache con TTL
+   • Auditoría de cada consulta
+   • Mecanismo de consentimiento del titular
+
+-![alt text](sequence-diagram.png)
+
+(diagrama hecho con gemini)
+
+2. Pseudocódigo (no ejecutable) de una función que:
+   • Verifique si la cédula tiene consentimiento vigente
+   • Consulte caché primero (Redis simulado)
+   • Si no está en caché, realice la petición a la fuente autorizada
+   • Registre en audit_log con timestamp, usuario que solicitó, cédula consultada
+
+```python
+def obtener_informacion_crediticia(cedula, usuario_solicitante):
+    # 1. Verificar consentimiento en DB de cumplimiento
+    consentimiento = db_consentimiento.verificar_estado(cedula)
+  
+    if not consentimiento.es_valido():
+        registrar_auditoria(usuario_solicitante, cedula, "ACCESO_DENEGADO_SIN_CONSENTIMIENTO")
+        raise SecurityException("El titular no tiene un consentimiento vigente.")
+
+    # 2. Intento de recuperación desde Caché (Redis)
+    cache_key = f"credit_ref:{cedula}"
+    datos_crediticios = redis_client.get(cache_key)
+
+    if datos_crediticios:
+        fuente = "CACHE"
+    else:
+        # 3. Consulta a fuente externa si no hay caché
+        try:
+            datos_crediticios = fuente_autorizada_api.fetch(cedula)
+            # Guardar en caché con Time-To-Live (TTL) de 24 horas
+            redis_client.set(cache_key, datos_crediticios, ex=86400)
+            fuente = "API_EXTERNA"
+        except APIError as e:
+            registrar_auditoria(usuario_solicitante, cedula, f"ERROR_PROVEEDOR: {str(e)}")
+            raise
+
+    # 4. Registro mandatorio en Log de Auditoría
+    # Incluye timestamp generado automáticamente por el sistema de logs
+    audit_log.record(
+        timestamp=datetime.now(timezone.utc),
+        usuario=usuario_solicitante,
+        target_cedula=cedula,
+        origen_dato=fuente,
+        evento="CONSULTA_CREDITICIA_EXITOSA"
+    )
+
+    return datos_crediticios
+```
+
+(código hecho con gemini)
+
+Plan de monitoreo: Proponga 3 métricas para monitorear la salud del sistema de
+extracción crediticia (tiempo respuesta, tasa de éxito, latencia de caché).
+
+El tiempo de respuesta del pipeline debe ser menor a 500 ms porque de otra forma muy probablemente ha entrado en algún cuello de botella, luego esta la latencia del caché donde voy a tomar en cuenta el porcentaje de consultas resueltas por encima del 70% contra las consultas a la fuente externa, y por último tenemos la tasa de exito, donde vamos a mirar son la tasa de fallos que debe ser menor al 1% por falta de consentimiento o fallo del proveedor
+
+# Enfoques data ops usados en el parcial
+
+En data_validation.py mediante la funcion enforce_quality me aseguro de que los datos cumplan los esquemas de ingresos y montos evitando así que entren datos corruptos al modelo
+
+tambien trato a los datos como producto porque en el orchestrator.py genero un log de auditoría (en JSON) que registra un timestamp, nivel de error y contexto de cada paso evitando la falla del incidente donde no detectaron cambios durante esos 3 meses, tambien se implemento un mecanismo de checkpoints donde si el proceso falla el orquestador sabe exactamente donde quedo y puede retomar sin hacer todo desde cero
+
+Y finalmente se implemento un backoff exponencial que maneja errores que pueden ocurrir en la red o el sistema de forma automática sin intervención humana
+
+## Escalabilidad
+
+Si el negocio crece y pasamos a 100 gb diarios, el enfoque actual con pandas y archivos JSON locales colapsaría, entonces se debería hacer un plan de migración con procesamiento distribuido como apache spark que manejan esto mucho mejor, tambien se dejaría de trabajar con csv para trabajar con archivos en formato parquet ya que reduce bastante el peso y permite leerlos en particiones de forma más sencilla, tambien o se orquestaría con un simple código en python sino por medio de DAGs con airflow (como estamos haciendo en el proyecto) y para el streaming usaríamos kafka para que la validación ocurra en milisegundos antes de que siquiera toque el delta lake
+
 
 # Ejecución del pipeline
 
-Primero descargamos los requirements.txt
+preparamos el entorno, obviamente primero debes crear uno, entonces ahí
 
+```bash
 pip install -r requirements.txt
+```
 
-luego si queremos ejecutar el pipeline crudo
+luego ejecutamos el pipeline
 
+```bash
 python -m src.orchestrator
+```
 
-ahora si queremos correr los tests para enrichment y validation
+y luego las pruebas (CI/CD)
 
-### pruebas CI/CD 
+```bash
+pytest tests/test_enrichment.py
+pytest tests/test_validation.py
+```
+
+
+### pruebas CI/CD
+
 ![alt text](image.png)
 
 ![alt text](image-1.png)
